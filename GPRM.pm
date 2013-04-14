@@ -5,12 +5,12 @@ use GPRM::Transformer qw( transform );
 	my @objs = ();
 	my %vars=();
 	my $regcounter=0;
-	if ($caller!~/^_PROC_/) {
+	if ($caller!~/_PROC_GPRM_/) {
 		my $tf_src=transform($caller);	
 #		die 'BOO!';
 #		print $tf_src;	die;
 		my @caller_path=split(/\//,$caller);
-		$caller_path[-1]='_PROC_'.$caller_path[-1];
+		$caller_path[-1]='_PROC_GPRM_'.$caller_path[-1];
 		my $proc_caller = join('/',@caller_path);
 		open my $PSCR,'>',$proc_caller ;
 		print $PSCR $tf_src;		
@@ -77,7 +77,7 @@ sub DESTROY {
 sub genAppConfig () {
 	my $fn=$0;
 	$fn=~s/\.pl//;
-	$fn=~s/^_PROC_//;
+	$fn=~s/_PROC_GPRM_//;
 
 	open my $TD, '>',"$fn.td";
 	print $TD "; $fn.yml\n";
@@ -96,7 +96,7 @@ sub genAppConfig () {
 	print $YML "\n";
 	close $YML;    
 
-	unlink $0 if $0=~/_PROC_/;
+	unlink $0 if $0=~/_PROC_GPRM_/;
 }
 
 1;

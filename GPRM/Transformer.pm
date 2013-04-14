@@ -76,7 +76,8 @@ sub transform {
 				} else {
 					return ([$node],$ctxt);
 				}
-			} else { die;
+			} else {# seems we never come here
+                die;
 				if($node->content =~/GPRM::/ && $ctxt->{reg_read}==1) {
 					say 'CREATE REG READ HERE? '.node->content;die;
 				}

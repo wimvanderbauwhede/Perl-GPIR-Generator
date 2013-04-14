@@ -33,7 +33,7 @@ my $SZ=1024;
 use GPRM;
 use GPRM::Mat;
 
-my $mm=new Mat($SZ,$NTH);
+my $mm=new GPRM::Mat($SZ,$NTH);
 
 $GPRM::A = $mm->rnd();
 $GPRM::B = $mm->rnd();

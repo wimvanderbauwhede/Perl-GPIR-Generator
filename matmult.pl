@@ -1,3 +1,9 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+use 5.010;
+
+use GPRM;
 use GPRM::MatrixOps;
 
 my @mops = map { new GPRM::MatrixOps($_) } 1..4;

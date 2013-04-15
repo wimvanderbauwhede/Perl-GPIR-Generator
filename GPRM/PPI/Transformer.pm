@@ -2,12 +2,13 @@ use warnings;
 use strict;
 use 5.010;
 
-package GPRM::Transformer;
+package GPRM::PPI::Transformer;
 
 use PPI;
 use PPI::Visitors qw(visit_tree visit_toplevel $verbose );
 use PPI::Generators;
 
+use PPI::Dumper;
 use Data::Dumper;
 $Data::Dumper::Indent=1;
 
@@ -16,9 +17,9 @@ $VERSION = "1.0.0";
 
 use Exporter;
 
-@GPRM::Transformer::ISA = qw(Exporter);
+@GPRM::PPI::Transformer::ISA = qw(Exporter);
 
-@GPRM::Transformer::EXPORT_OK = qw(
+@GPRM::PPI::Transformer::EXPORT_OK = qw(
   transform
 );
 
@@ -30,17 +31,20 @@ sub transform {
 		child_index => 0,
 		count=>0,
 		reg_counter=>1,
-		reg_write=>0,
-		reg_read=>0,
+		reg_write=>{},
+		reg_read=>{},
 		scope=>0,
 		is_pre=>0,
 		is_post=>0,
 		is_leaf=>0,
 		seq=>0,
+		visit_children =>1,
 		pars_seq=>{},
 		reg_table=>{},
 		var_table=>{},
 		extra_classes=>{},
+		service_instances => {},
+		
 	};
 
 # First pass it to replace all GPRM:: package vars with registers
@@ -51,39 +55,47 @@ sub transform {
 
 		'PPI::Token::Symbol' => sub {
 			(my $node, my $ctxt) = @_;
-
-			if ( $ctxt->{is_pre}==1) {
-				if($node->content =~/GPRM::/) {
-				my $new_node=$node;
-				my $parent = $ctxt->{parent};
-				my $idx =$ctxt->{child_index};
-#				say 'CONTENT:', $node->content;
-				(my $reg_status,$ctxt) = test_reg($parent,$node,$idx,$ctxt);
-# what needs to happen is that the parent needs to be transformed
-# so this must be done in POST
-# we just set a global flag
-				if ($reg_status == 0 ) { # write reg; 
-					$ctxt->{reg_write}=1;
-					$ctxt->{reg_read}=0;
-				} elsif ($reg_status == 1) { # read reg
-					$ctxt->{reg_write}=0;
-					$ctxt->{reg_read}=1;
-				} else { # not a reg
-					$ctxt->{reg_write}=0;
-					$ctxt->{reg_read}=0;
-				}
-				return ([$new_node],$ctxt); # because of this, all transforms must return a list!
+#            say '';
+#			if ( $ctxt->{is_pre}==1) {
+				if($node->content =~/GPRM\:\:/) {
+					my $new_node=$node;
+					my $parent = $ctxt->{parent};
+					my $idx =$ctxt->{child_index};
+#					say 'CONTENT:', $node->content;
+#					say 'CALL test_reg';
+					(my $reg_status,$ctxt) = test_reg($parent,$node,$idx,$ctxt);
+#					say "TEST";
+	# what needs to happen is that the parent needs to be transformed
+	# so this must be done in POST
+	# we just set a global flag
+					if ($reg_status == 0 ) { # write reg; 
+					   my $reg=$node->content;
+						$ctxt->{reg_write}{$reg}=1;
+						$ctxt->{reg_read}{$reg}=0;
+					} elsif ($reg_status == 1) { # read reg
+					my $reg=$node->content;
+						$ctxt->{reg_write}{$reg}=0;
+						$ctxt->{reg_read}{$reg}=1;
+                           $ctxt->{reg_read}{$reg}=0;
+#                           say "CALL create_reg_read";
+                           ($new_node,$ctxt) = create_reg_read($node,$ctxt);	
+#                           die Dumper($new_node);					
+					} else { # not a reg
+#						$ctxt->{reg_write}=0;
+#						$ctxt->{reg_read}=0;
+					}
+					return ([$new_node],$ctxt); # because of this, all transforms must return a list!
 				} else {
 					return ([$node],$ctxt);
 				}
-			} else {# seems we never come here
-                die;
-				if($node->content =~/GPRM::/ && $ctxt->{reg_read}==1) {
-					say 'CREATE REG READ HERE? '.node->content;die;
-				}
-
-				return ([$node],$ctxt);
-			}
+#			} else {# seems we never come here
+#                die;
+#				if($node->content =~/GPRM::/ && $ctxt->{reg_read}==1) {
+#					say 'CREATE REG READ HERE? '.node->content;die;
+#				}
+#
+#				return ([$node],$ctxt);
+#			}
 		},
 
 		'PPI::Statement' => sub { 
@@ -92,9 +104,10 @@ sub transform {
 # do nothing
 			} else {
 				if (exists $node->{children} && @{ $node->{children} } ) {
-					if (ref($node->child(0)) eq 'PPI::Token::Symbol') {						
-						if ($ctxt->{reg_write}==1) {
-							$ctxt->{reg_write}=0;
+					if (ref($node->child(0)) eq 'PPI::Token::Symbol') {		
+						my $sym=$node->child(0)->content;						
+						if (exists $ctxt->{reg_write}{$sym} && $ctxt->{reg_write}{$sym}==1) {
+							$ctxt->{reg_write}{$sym}=0;
 							($node,$ctxt) = create_reg_write($node, $ctxt);	
 							$ctxt->{reg_counter}++;
 						}
@@ -118,6 +131,7 @@ sub transform {
 			if ($ctxt->{is_post}==1) {
 				if ($node->schild(1)->content eq 'seq') {
 #					say 'SEQ @ ',$ctxt->{count} ;
+$node = _comment($node->content);
 					$ctxt->{seq}=1;
 				}
 			}
@@ -204,9 +218,10 @@ sub transform {
 sub test_reg {
     (my $newnode, my $child, my $i, my $ctxt)= @_;
 	say '------------';
-#	PPI::Dumper->new($child)->print;
-#	say 'PARENT';
-#	PPI::Dumper->new($newnode)->print;
+	PPI::Dumper->new($child)->print;
+	say 'PARENT';
+	say 'CONTENT: ',$newnode->content;
+	print 'DUMPER: ';PPI::Dumper->new($newnode)->print;
 
     my $nchildren  = scalar @{ $newnode->{children}}; 
     my $reg_status=-1;
@@ -218,13 +233,13 @@ sub test_reg {
 		} else {
 			say $child->{content} , ' exists in REG TABLE ';
 		}
-#	say '------------';
-#		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
-#	say '------------';
+	say '------------';
+		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
+	say '------------';
 		if ($nchildren==1) {
 # $i must be the only child!
-			die '$i != 0:'.$i,Dumper($child) unless $i==0;
-			say "ONLY CHILD, REG READ!";
+			die '$i != 0: '.$i,Dumper($child) unless $i==0;
+#			say "ONLY CHILD, REG READ!";
 			$reg_status=1;
 
 		} elsif ($i<$nchildren-1) {
@@ -236,6 +251,7 @@ sub test_reg {
 #				print "$i SKIP \n";
 			}
 			if ($child2->content eq '=') { 
+				say 'REG WRITE ', $child->content;
 # This is a GPRM register in write mode, replace the parent! 
 				$reg_status=0;
 # i.e. set a flag, break out of the loop, and replace $newnode by the actual new code
@@ -243,7 +259,7 @@ sub test_reg {
 # This is a GPRM register in read mode, replace in-place 
 # i.e. replace $child by a different $new_child
 #                    print "REG_READ: CREATE CODE! <",  $child->{content},">\n";
-				say "REG_READ <",  $ctxt->{reg_table}->{ $child->{content} },">:<",$child->{content},">";
+#				say "REG_READ <",  $ctxt->{reg_table}->{ $child->{content} },">:<",$child->{content},">";
 				if (not defined  $ctxt->{reg_table}->{ $child->{content} } ) { die Dumper(  $ctxt->{reg_table} ); }
 #                    $child->{content}=$child->{content}.'BOOM!!!';
 				$reg_status=1;
@@ -251,8 +267,10 @@ sub test_reg {
 			}
 		}
 	}
+#	die if $child->content=~/AB/;
 	return ($reg_status,$ctxt);
-}
+} # END of test_reg()
+
 sub create_reg_write {
 	(my $node, my $ctxt)=@_;
 	my $var_name = $node->child(0)->content;
@@ -304,7 +322,7 @@ sub create_reg_write {
 
 sub create_reg_read {
     (my $child, my $ctxt)=@_;
-	say 'CREATE REG READ for '. ref($child).':<'.$child->{content}.'>';
+#	say 'CREATE REG READ for '. ref($child).':<'.$child->{content}.'>';
     my $reg = $ctxt->{reg_table}->{ $child->{content} };
     my $reg_read_expr = PPI::Statement::Expression->new();
 #    my $new_child=#    die Dumper($new_child);
@@ -382,7 +400,7 @@ sub find_variables {
 }
 
 
-# Find all foreach-loops and wrap a (begin) around them
+# Find all foreach-loops and wrap a (seq ) or (par ) around them
 sub wrap_foreach {
 	(my $node, my $ctxt)=@_;
 #	say 'PAR_SEQ: ',join(' ', %{$ctxt->{par_seq} }); 
@@ -393,7 +411,7 @@ sub wrap_foreach {
 #            die $ctxt->{seq};
 		print 'Found '.$node->schild(0).", creating wrapper\n" if $verbose;
         $ctxt->{extra_classes}->{Ctrl}=1;
-		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'begin' ) .'( do {'."\n".$node->content."\n} \n);\n}\n";
+		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$node->content."\n} \n);\n}\n";
 		my $new_doc= new PPI::Document::Fragment(\$str);	  
 		my $new_node=$new_doc->schild()->clone();
     	return ($new_node,$ctxt);
@@ -426,7 +444,7 @@ sub wrap_foreach {
 #        $new_node->{children}=[_word('do'),_ws(),$block,_semi()];
 #        bless($new_node,'PPI::Statement');
 # 2. wrap this node in a begin/do
-		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'begin' ) .'( do {'."\n".$block->content."\n} \n);\n}\n";
+		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$block->content."\n} \n);\n}\n";
 		my $new_doc= new PPI::Document::Fragment(\$str);	  
 		my $new_node=$new_doc->schild()->clone();
 		return ($new_node,$ctxt);

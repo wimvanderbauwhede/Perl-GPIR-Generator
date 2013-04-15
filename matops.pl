@@ -44,12 +44,12 @@ $GPRM::D = $mm->rnd();
 use seq;
 {
 	{
-		my $ab = do {
+		$GPRM::AB = do {
 			foreach my $i (1..$NTH) {
 				$mm->sum($GPRM::A,$GPRM::B,$i);
 			}
 		};
-		$GPRM::AB = $ab;
+#		$GPRM::AB = $ab;
 
 		my $cd = do {
 			foreach my $i (1..$NTH) {

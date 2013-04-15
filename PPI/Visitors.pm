@@ -83,29 +83,34 @@ sub visit_tree {
 	(my $tf_parent_l, $ctxt) = transform_node_pre($parent,$node_ops,$ctxt);	
 	my $tf_parent_l2=[];
 	for my $tf_parent (@{$tf_parent_l}) {
-		if (exists $tf_parent->{children} ) {
+		if (exists $tf_parent->{children}) {
 			$ctxt->{is_leaf}=0;
-			say $ctxt->{count},' >>>',"-" x (4*$ctxt->{count}) ,
-				  "Visiting all child nodes for NODE ",ref($tf_parent),
-				  '-' x (80 - 4*$ctxt->{count} - length(ref($tf_parent))),$ctxt->{count} if $verbose;
-			$ctxt->{parent}=$tf_parent;
-			my $i=0; # for look-ahead and look-back
-			for my $child ( $tf_parent->children ) {
-                $ctxt->{child_index}=$i;
-				
-				    $ctxt->{count}++;
-                    (my $new_children,$ctxt)=visit_tree($child,$node_ops, $ctxt);
-				    $ctxt->{count}--;
-                
-				$tf_parent->remove_child($child);
-				for my $new_child ( @{$new_children} ){
-					$tf_parent->add_element($new_child);
+			if($ctxt->{visit_children}==1) {
+				say $ctxt->{count},' >>>',"-" x (4*$ctxt->{count}) ,
+					  "Visiting all child nodes for NODE ",ref($tf_parent),
+					  '-' x (80 - 4*$ctxt->{count} - length(ref($tf_parent))),$ctxt->{count} if $verbose;
+				$ctxt->{parent}=$tf_parent;
+#				say "PARENT: ",$tf_parent->content;
+				my $i=0; # for look-ahead and look-back
+				for my $child ( $tf_parent->children ) {
+	                $ctxt->{child_index}=$i;
+					
+					    $ctxt->{count}++;
+	                    (my $new_children,$ctxt)=visit_tree($child,$node_ops, $ctxt);
+					    $ctxt->{count}--;
+	                
+					$tf_parent->remove_child($child);
+					for my $new_child ( @{$new_children} ){
+						$tf_parent->add_element($new_child);
+					}
+					$i++;
 				}
-				$i++;
+				say $ctxt->{count},' <<<'," -" x (2*$ctxt->{count}) ,
+					"Visited all child nodes for NODE ",ref($tf_parent),
+					' -' x ( (81 - 4*$ctxt->{count} -length(ref($tf_parent)) )/2) ,$ctxt->{count} if $verbose;
 			}
-			say $ctxt->{count},' <<<'," -" x (2*$ctxt->{count}) ,
-				"Visited all child nodes for NODE ",ref($tf_parent),
-				' -' x ( (81 - 4*$ctxt->{count} -length(ref($tf_parent)) )/2) ,$ctxt->{count} if $verbose;
+			$ctxt->{parent}=$tf_parent;
+#			say 'PARENT POST: ',$ctxt->{parent};
 			(my $tf_parent2, $ctxt) = transform_node_post($tf_parent,$node_ops,$ctxt);
 			$tf_parent_l2 = [@{$tf_parent_l2},@{$tf_parent2}];
 		} else {

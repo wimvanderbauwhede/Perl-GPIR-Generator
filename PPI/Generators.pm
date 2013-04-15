@@ -35,6 +35,7 @@ _method_call
 _operator_expr 
 _simple_statement 
 _expression 
+_comment
 		);		
 
 sub _word {
@@ -99,6 +100,11 @@ sub _var {
 sub _num {
     my $val = shift;
     return PPI::Token::Number->new($val);
+}
+
+sub _comment {
+	my $str = shift;
+	return PPI::Token::Comment->new('# '.$str);
 }
 
 ## Compound generators

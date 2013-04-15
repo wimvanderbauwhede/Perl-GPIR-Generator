@@ -5,7 +5,7 @@
 use warnings;
 use strict;
 use 5.010;
-use GPRM::Transformer qw( transform );
+use GPRM::PPI::Transformer qw( transform );
 
 use Getopt::Std;
     

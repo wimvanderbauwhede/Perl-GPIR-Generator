@@ -1,6 +1,6 @@
 package GPRM;
 #BEGIN {
-use GPRM::Transformer qw( transform );
+use GPRM::PPI::Transformer qw( transform );
 	my $caller = $0;
 	my @objs = ();
 	my %vars=();

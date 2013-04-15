@@ -217,25 +217,26 @@ $node = _comment($node->content);
 #--------------------------------------------------------------------------------
 sub test_reg {
     (my $newnode, my $child, my $i, my $ctxt)= @_;
-	say '------------';
-	PPI::Dumper->new($child)->print;
-	say 'PARENT';
-	say 'CONTENT: ',$newnode->content;
-	print 'DUMPER: ';PPI::Dumper->new($newnode)->print;
+#	say '------------';
+#	PPI::Dumper->new($child)->print;
+#	say 'PARENT';
+#	say 'CONTENT: ',$newnode->content;
+#	print 'DUMPER: ';PPI::Dumper->new($newnode)->print;
 
     my $nchildren  = scalar @{ $newnode->{children}}; 
     my $reg_status=-1;
     if (ref($child) eq 'PPI::Token::Symbol' && $child->{content} =~/GPRM::/) {
 		$ctxt->{extra_classes}{Reg}=1;
 		if (not exists $ctxt->{reg_table}->{ $child->{content} } ) {
-			print "ADD TO REG TABLE ",$child->{content} ,"\n";
+#			print "ADD TO REG TABLE ",$child->{content} ,"\n";
 			$ctxt->{reg_table}->{ $child->{content} } = $ctxt->{reg_counter};
-		} else {
-			say $child->{content} , ' exists in REG TABLE ';
-		}
-	say '------------';
-		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
-	say '------------';
+		} 
+#		else {
+#			say $child->{content} , ' exists in REG TABLE ';
+#		}
+#	say '------------';
+#		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
+#	say '------------';
 		if ($nchildren==1) {
 # $i must be the only child!
 			die '$i != 0: '.$i,Dumper($child) unless $i==0;
@@ -251,7 +252,7 @@ sub test_reg {
 #				print "$i SKIP \n";
 			}
 			if ($child2->content eq '=') { 
-				say 'REG WRITE ', $child->content;
+#				say 'REG WRITE ', $child->content;
 # This is a GPRM register in write mode, replace the parent! 
 				$reg_status=0;
 # i.e. set a flag, break out of the loop, and replace $newnode by the actual new code

@@ -7,6 +7,7 @@ package GPRM::PPI::Transformer;
 use PPI;
 use PPI::Visitors qw(visit_tree visit_toplevel $verbose );
 use PPI::Generators;
+use PPI::Analysis qw( nchildren );
 
 use PPI::Dumper;
 use Data::Dumper;
@@ -29,7 +30,7 @@ use Exporter;
 
 
 sub transform { 
-	(my $src)=@_;
+	(my $src, my $pp)=@_;
 	my $doc= PPI::Document->new($src);
 	my $ctxt = {
 		parent => $doc,
@@ -153,41 +154,64 @@ sub transform {
 			} else {
                 if ($ctxt->{is_statement_list}==1) {
                     $ctxt->{is_statement_list}=0;
+					if (ref($node->{parent}) eq 'PPI::Statement::Compound') {
+					say '--------';
+					my $idx = $node->{child_index};
+#					PPI::Dumper->new($node->{parent}->child($idx-2))->print;
+#					die;
                     my $args=[];
+					if ($node->{children}->[-1]->content eq ',') {
+						pop @{ $node->{children} };
+					}
+					my $j=-1;
+					while (ref($node->{children}->[$j]) eq 'PPI::Token::Whitespace')  {
+						pop @{ $node->{children} };
+					}
+					if ($node->{children}->[-1]->content eq ',') {
+						pop @{ $node->{children} };
+					}
                     for my $child (@{ $node->{children} }) {
 #                       print '*** ';
 #                     PPI::Dumper->new($child)->print;
                      push @{$args}, $child->clone();
                     }                                        
-                    my $new_node=_method_call('$_GPRM_ctrl','par',$args);                    
+					my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
+					my $par_or_seq = $seq ? 'seq':'par';
+					$ctxt->{seq}=0;
+                    my $new_node=_method_call('$_GPRM_ctrl',$par_or_seq,$args);                    
 #  PPI::Dumper->new($new_node)->print;
-                    say $new_node->content; 
+#say $new_node->content; 
                     return ([$new_node],$ctxt);
-
+					}
                 }
             }
 			return ([$node],$ctxt);
 		},
 		'PPI::Statement::Compound' => sub {
-			(my $parent, my $ctxt)=@_;        
-#            PPI::Dumper->new($parent)->print;die;
+			(my $node, my $ctxt)=@_;        
             if ($ctxt->{is_pre}==1) {
 				$ctxt->{par_seq}->{$ctxt->{count}}=$ctxt->{seq};
-				$ctxt->{seq}=0;
+#$ctxt->{seq}=0;
 			}
 			if ($ctxt->{is_post}==1) {
-				(my $tf_parent,$ctxt) = wrap_foreach($parent,$ctxt);
+				if (ref($node->schild(0)) eq 'PPI::Statement::Expression'
+						and nchildren($node)==1) {
+					return ([$node->schild(0)->clone()],$ctxt);
+				} else {
+				(my $tf_node,$ctxt) = wrap_foreach($node,$ctxt);
 				$ctxt->{seq}=0;
-				return ([$tf_parent],$ctxt);
+				return ([$tf_node],$ctxt);
+				}
 			} else {
-				return ([$parent],$ctxt);
+				return ([$node],$ctxt);
 			}
 		},
         'PPI::Statement' => sub {	
             (my $node, my $ctxt)=@_;
     	if ($ctxt->{is_post}==1) {
-
+			
             # PPI::Statement is always a 'Simple Statement' 
+			# We can 
             if ($node->{children}->[-1] eq ';') {
                 $node->{children}->[-1] = _comma();                
             }
@@ -248,10 +272,15 @@ sub transform {
 	my $newdoc2=$newdocl2->[0];
 
 	(my $newdoc3,$ctxt)=visit_toplevel($newdoc2,$node_ops_pass3,$ctxt);
+
+	if (defined $pp and $pp) {
+		PPI::Dumper->new($newdoc3)->print;
+		exit;
+	}
 	my $tf_src = $newdoc3->content;
 
 	return $tf_src;
-}
+} # END of transform()
 
 #--------------------------------------------------------------------------------
 sub test_reg {

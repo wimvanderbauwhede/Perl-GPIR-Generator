@@ -183,6 +183,9 @@ sub transform_node_pre {
 	say 'PRE '.ref($node) if $verbose;
     $ctxt->{is_pre}=1;
     $ctxt->{is_post}=0;    
+	my $parent = $ctxt->{parent};
+	$node->{parent}=$parent;
+	$node->{child_index}=$ctxt->{child_index};
 	return transform_node($node, $node_ops, $ctxt);
 }
 

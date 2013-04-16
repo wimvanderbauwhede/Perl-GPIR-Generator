@@ -5,7 +5,7 @@ use GPRM::PPI::Transformer qw( transform );
 	my @objs = ();
 	my %vars=();
 	my $regcounter=0;
-	if ($caller!~/_PROC_GPRM_/) {
+	if (0 && $caller!~/_PROC_GPRM_/) {
 		my $tf_src=transform($caller);	
 #		die 'BOO!';
 #		print $tf_src;	die;

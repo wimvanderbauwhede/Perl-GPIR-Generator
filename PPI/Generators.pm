@@ -109,13 +109,19 @@ sub _comment {
 
 ## Compound generators
 # PPI::Structure::List, argument list
+# If @arg contains PPI::Token::Operator ',' the @args will be used as-is
 sub _arglist {
     my @args=@_;
     my $arglist = PPI::Structure::List->new(); # NOTE: this does not work! That's why there is the call to bless() later on. Why?
     $arglist->{start}=_struct('(');
     $arglist->{finish}=_struct(')');
-
-    $arglist->{children}=(scalar @args  > 1) ? [ _operator_expr(_comma(),[@args]) ] :(scalar @args == 1) ? [ $args[0] ] : [];
+    my @operators = grep {ref($_) eq 'PPI::Token::Operator' } @args; 
+    my @commas = grep { $_->content eq ',' } @operators;
+    if (@commas) {
+        $arglist->{children}=[@args];
+    } else {
+        $arglist->{children}=(scalar @args  > 1) ? [ _operator_expr(_comma(),[@args]) ] :(scalar @args == 1) ? [ $args[0] ] : [];
+    }
     bless($arglist,'PPI::Structure::List');
     return $arglist;
 }

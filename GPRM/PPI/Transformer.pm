@@ -23,11 +23,16 @@ use Exporter;
   transform
 );
 
+#die "FIXME: bare blocks must actually be converted into lists, not do blocks!
+#same for do blocks, assigned or not. Basically, every ';' must become a ','
+#";
+
+
 sub transform { 
 	(my $src)=@_;
 	my $doc= PPI::Document->new($src);
 	my $ctxt = {
-		parent => '',
+		parent => $doc,
 		child_index => 0,
 		count=>0,
 		reg_counter=>1,
@@ -38,6 +43,7 @@ sub transform {
 		is_post=>0,
 		is_leaf=>0,
 		seq=>0,
+        is_statement_list=>0,
 		visit_children =>1,
 		pars_seq=>{},
 		reg_table=>{},
@@ -77,9 +83,10 @@ sub transform {
 						$ctxt->{reg_write}{$reg}=0;
 						$ctxt->{reg_read}{$reg}=1;
                            $ctxt->{reg_read}{$reg}=0;
-#                           say "CALL create_reg_read";
+                           say "CALL create_reg_read" if $verbose;
                            ($new_node,$ctxt) = create_reg_read($node,$ctxt);	
-#                           die Dumper($new_node);					
+                           $ctxt->{visit_children}=0;
+#                           say Dumper($new_node);					
 					} else { # not a reg
 #						$ctxt->{reg_write}=0;
 #						$ctxt->{reg_read}=0;
@@ -131,7 +138,7 @@ sub transform {
 			if ($ctxt->{is_post}==1) {
 				if ($node->schild(1)->content eq 'seq') {
 #					say 'SEQ @ ',$ctxt->{count} ;
-$node = _comment($node->content);
+                    $node = _comment($node->content);
 					$ctxt->{seq}=1;
 				}
 			}
@@ -143,12 +150,28 @@ $node = _comment($node->content);
 #				say 'SEQ/PAR for ',$ctxt->{count},':',$ctxt->{seq};
 				$ctxt->{par_seq}->{$ctxt->{count}}=$ctxt->{seq};
 				$ctxt->{seq}=0;
-			} 
+			} else {
+                if ($ctxt->{is_statement_list}==1) {
+                    $ctxt->{is_statement_list}=0;
+                    my $args=[];
+                    for my $child (@{ $node->{children} }) {
+#                       print '*** ';
+#                     PPI::Dumper->new($child)->print;
+                     push @{$args}, $child->clone();
+                    }                                        
+                    my $new_node=_method_call('$_GPRM_ctrl','par',$args);                    
+#  PPI::Dumper->new($new_node)->print;
+                    say $new_node->content; 
+                    return ([$new_node],$ctxt);
+
+                }
+            }
 			return ([$node],$ctxt);
 		},
 		'PPI::Statement::Compound' => sub {
 			(my $parent, my $ctxt)=@_;        
-			if ($ctxt->{is_pre}==1) {
+#            PPI::Dumper->new($parent)->print;die;
+            if ($ctxt->{is_pre}==1) {
 				$ctxt->{par_seq}->{$ctxt->{count}}=$ctxt->{seq};
 				$ctxt->{seq}=0;
 			}
@@ -160,6 +183,22 @@ $node = _comment($node->content);
 				return ([$parent],$ctxt);
 			}
 		},
+        'PPI::Statement' => sub {	
+            (my $node, my $ctxt)=@_;
+    	if ($ctxt->{is_post}==1) {
+
+            # PPI::Statement is always a 'Simple Statement' 
+            if ($node->{children}->[-1] eq ';') {
+                $node->{children}->[-1] = _comma();                
+            }
+            $ctxt->{is_statement_list}=1;
+            say 'LIST: '; map { PPI::Dumper->new($_)->print } @{$node->{children} };say '--------';
+            my $new_nodes = [  map { $_->clone() } @{$node->{children} } ];
+            return ($new_nodes,$ctxt);
+        } else {
+        	return ([$node],$ctxt);
+        }
+        }
 	};
 
 	my $node_ops_pass3 = {
@@ -217,30 +256,34 @@ $node = _comment($node->content);
 #--------------------------------------------------------------------------------
 sub test_reg {
     (my $newnode, my $child, my $i, my $ctxt)= @_;
-#	say '------------';
-#	PPI::Dumper->new($child)->print;
-#	say 'PARENT';
-#	say 'CONTENT: ',$newnode->content;
-#	print 'DUMPER: ';PPI::Dumper->new($newnode)->print;
-
+    my $dbg=0;
+    if ($dbg) {
+	say '------------';
+	PPI::Dumper->new($child)->print;
+	say 'PARENT';
+	say 'CONTENT: ',$newnode->content;
+	print 'DUMPER: ';PPI::Dumper->new($newnode)->print;
+    }
     my $nchildren  = scalar @{ $newnode->{children}}; 
     my $reg_status=-1;
     if (ref($child) eq 'PPI::Token::Symbol' && $child->{content} =~/GPRM::/) {
 		$ctxt->{extra_classes}{Reg}=1;
 		if (not exists $ctxt->{reg_table}->{ $child->{content} } ) {
-#			print "ADD TO REG TABLE ",$child->{content} ,"\n";
+			say "ADD TO REG TABLE ",$child->{content} if $dbg;
 			$ctxt->{reg_table}->{ $child->{content} } = $ctxt->{reg_counter};
 		} 
-#		else {
-#			say $child->{content} , ' exists in REG TABLE ';
-#		}
-#	say '------------';
-#		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
-#	say '------------';
+		else {
+			say $child->{content} , ' exists in REG TABLE ' if $dbg;
+		}
+		if ($dbg) {
+	say '------------';
+		say $i,'<>',$nchildren,' REF:',ref($child),', VAR:',$child->{content};
+	say '------------';
+		}
 		if ($nchildren==1) {
 # $i must be the only child!
 			die '$i != 0: '.$i,Dumper($child) unless $i==0;
-#			say "ONLY CHILD, REG READ!";
+			say "ONLY CHILD, REG READ!" if $dbg;
 			$reg_status=1;
 
 		} elsif ($i<$nchildren-1) {
@@ -252,14 +295,14 @@ sub test_reg {
 #				print "$i SKIP \n";
 			}
 			if ($child2->content eq '=') { 
-#				say 'REG WRITE ', $child->content;
+				say 'REG WRITE ', $child->content if $dbg;
 # This is a GPRM register in write mode, replace the parent! 
 				$reg_status=0;
 # i.e. set a flag, break out of the loop, and replace $newnode by the actual new code
 			} else {
 # This is a GPRM register in read mode, replace in-place 
 # i.e. replace $child by a different $new_child
-#                    print "REG_READ: CREATE CODE! <",  $child->{content},">\n";
+                    say "REG READ ",  $child->{content}  if $dbg;
 #				say "REG_READ <",  $ctxt->{reg_table}->{ $child->{content} },">:<",$child->{content},">";
 				if (not defined  $ctxt->{reg_table}->{ $child->{content} } ) { die Dumper(  $ctxt->{reg_table} ); }
 #                    $child->{content}=$child->{content}.'BOOM!!!';
@@ -407,6 +450,7 @@ sub wrap_foreach {
 #	say 'PAR_SEQ: ',join(' ', %{$ctxt->{par_seq} }); 
 
 		my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
+		
 #	say 'SEQ/PAR COUNT:',$ctxt->{count},':',$seq;
     	if ( $node->schild(0) eq 'for' or $node->schild(0) eq 'foreach' or $node->schild(0) eq 'while' ) {
 #            die $ctxt->{seq};
@@ -445,6 +489,7 @@ sub wrap_foreach {
 #        $new_node->{children}=[_word('do'),_ws(),$block,_semi()];
 #        bless($new_node,'PPI::Statement');
 # 2. wrap this node in a begin/do
+        $ctxt->{extra_classes}->{Ctrl}=1;
 		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$block->content."\n} \n);\n}\n";
 		my $new_doc= new PPI::Document::Fragment(\$str);	  
 		my $new_node=$new_doc->schild()->clone();

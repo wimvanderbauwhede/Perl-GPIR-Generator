@@ -78,9 +78,13 @@ use Exporter;
 our $verbose=0;
 #--------------------------------------------------------------------------------
 sub visit_tree {
-    (my $node, my $node_ops, my $ctxt)=@_;		
-    my $parent=$node->clone();
-	(my $tf_parent_l, $ctxt) = transform_node_pre($parent,$node_ops,$ctxt);	
+    (my $node, my $node_ops, my $ctxt)=@_;
+    my $dbg=1;		
+    say '>> NODE: ',$node->content, ' PARENT: ',$ctxt->{parent}->content if $dbg;
+    my $current=$node->clone();
+ 
+	(my $tf_parent_l, $ctxt) = transform_node_pre($node,$node_ops,$ctxt);	
+	
 	my $tf_parent_l2=[];
 	for my $tf_parent (@{$tf_parent_l}) {
 		if (exists $tf_parent->{children}) {
@@ -89,18 +93,20 @@ sub visit_tree {
 				say $ctxt->{count},' >>>',"-" x (4*$ctxt->{count}) ,
 					  "Visiting all child nodes for NODE ",ref($tf_parent),
 					  '-' x (80 - 4*$ctxt->{count} - length(ref($tf_parent))),$ctxt->{count} if $verbose;
-				$ctxt->{parent}=$tf_parent;
 #				say "PARENT: ",$tf_parent->content;
 				my $i=0; # for look-ahead and look-back
 				for my $child ( $tf_parent->children ) {
 	                $ctxt->{child_index}=$i;
-					
+					say "$i SET PARENT TO ",$current->content if $dbg;
+					$ctxt->{parent}=$current; 
 					    $ctxt->{count}++;
 	                    (my $new_children,$ctxt)=visit_tree($child,$node_ops, $ctxt);
 					    $ctxt->{count}--;
-	                
+					    say "$i POST SET PARENT TO ",$current->content if $dbg;
+					    $ctxt->{parent}=$current; 
 					$tf_parent->remove_child($child);
 					for my $new_child ( @{$new_children} ){
+                        print 'ADD: ';PPI::Dumper->new($new_child)->print;
 						$tf_parent->add_element($new_child);
 					}
 					$i++;
@@ -109,9 +115,15 @@ sub visit_tree {
 					"Visited all child nodes for NODE ",ref($tf_parent),
 					' -' x ( (81 - 4*$ctxt->{count} -length(ref($tf_parent)) )/2) ,$ctxt->{count} if $verbose;
 			}
-			$ctxt->{parent}=$tf_parent;
-#			say 'PARENT POST: ',$ctxt->{parent};
+			$ctxt->{visit_children}=1;
+#            if ( $ctxt->{is_statement_list} == 1 ) {
+#                 PPI::Dumper->new($tf_parent)->print ;die;
+#                        }
+#            say ' BEFORE transform_node_post ';
+
 			(my $tf_parent2, $ctxt) = transform_node_post($tf_parent,$node_ops,$ctxt);
+#            say ' AFTER transform_node_post ';
+#            map {PPI::Dumper->new($_)->print } @{$tf_parent2};
 			$tf_parent_l2 = [@{$tf_parent_l2},@{$tf_parent2}];
 		} else {
 			$ctxt->{is_leaf}=1;
@@ -160,13 +172,15 @@ sub transform_node {
 	if (exists $node_ops->{$node_type}) {
 		($tf_node,$ctxt) = $node_ops->{$node_type}->($node,$ctxt);
 	} 
-	print ' ' x (4*$ctxt->{count}), ref($tf_node->[0]),"\n" if $verbose;
+    if ($verbose) {
+    map { 	print ' ' x (4*$ctxt->{count}), ref($_), $_->content,"\n" }  @{$tf_node};
+    }
 	return ($tf_node,$ctxt);
 }
 
 sub transform_node_pre {
     (my $node, my $node_ops, my $ctxt)=@_;
-	print "PRE\n" if $verbose;
+	say 'PRE '.ref($node) if $verbose;
     $ctxt->{is_pre}=1;
     $ctxt->{is_post}=0;    
 	return transform_node($node, $node_ops, $ctxt);
@@ -174,7 +188,7 @@ sub transform_node_pre {
 
 sub transform_node_post{
     (my $node, my $node_ops, my $ctxt)=@_;
-	print "POST\n" if $verbose;
+	say 'POST '.ref($node) if $verbose;
     $ctxt->{is_post}=1;    
     $ctxt->{is_pre}=0;  
 	return transform_node($node, $node_ops, $ctxt);

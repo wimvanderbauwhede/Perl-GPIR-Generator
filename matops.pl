@@ -35,6 +35,9 @@ use GPRM::Mat;
 
 my $mm=new GPRM::Mat($SZ,$NTH);
 
+GPRM::main();
+
+sub GPRM::main {
 $GPRM::A = $mm->rnd();
 $GPRM::B = $mm->rnd();
 $GPRM::C = $mm->rnd();
@@ -64,4 +67,4 @@ use seq;
 	}
 
 }
-
+}

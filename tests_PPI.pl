@@ -9,7 +9,14 @@ use Data::Dumper;
 use PPI::Analysis ;
 use GPRM::PPI::Analysis ;
 
-my $str= << 'ENDQ';
+my $str =<< 'ENDQ';
+{
+    1;
+}
+
+ENDQ
+
+my $str2 =<< 'ENDQ2';
 {
 $mm1->sum($GPRM::A,$GPRM::B,$i);
 $mm2->sum($GPRM::A,$GPRM::B,$i);
@@ -36,12 +43,12 @@ $ctrl->par(
 $mm1->sum($GPRM::A,$GPRM::B,$i),
 $mm2->sum($GPRM::A,$GPRM::B,$i)
 );
-ENDQ
+ENDQ2
 
 my $snip =PPI::Document->new(\$str);
 my $pp = PPI::Dumper->new($snip);
-$pp->print;
-#say Dumper($snip);
+#$pp->print;
+say Dumper($snip);
 die;
 my $node = $snip->schild(0);
 say ref($node);

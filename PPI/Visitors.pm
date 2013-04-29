@@ -79,7 +79,7 @@ our $verbose=0;
 #--------------------------------------------------------------------------------
 sub visit_tree {
     (my $node, my $node_ops, my $ctxt)=@_;
-    my $dbg=1;		
+    my $dbg=0;		
     say '>> NODE: ',$node->content, ' PARENT: ',$ctxt->{parent}->content if $dbg;
     my $current=$node->clone();
  
@@ -106,7 +106,7 @@ sub visit_tree {
 					    $ctxt->{parent}=$current; 
 					$tf_parent->remove_child($child);
 					for my $new_child ( @{$new_children} ){
-                        print 'ADD: ';PPI::Dumper->new($new_child)->print;
+#                        print 'ADD: ';PPI::Dumper->new($new_child)->print;
 						$tf_parent->add_element($new_child);
 					}
 					$i++;

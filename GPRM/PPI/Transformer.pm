@@ -44,6 +44,7 @@ sub transform {
 		is_post=>0,
 		is_leaf=>0,
 		seq=>0,
+        in_main =>0,
         is_statement_list=>0,
 		visit_children =>1,
 		pars_seq=>{},
@@ -59,7 +60,16 @@ sub transform {
 # Third pass is to add extra modules and instances at top level
 
 	my $node_ops_pass1 = {
+        'PPI::Token::Comment' => sub {
+        	(my $node, my $ctxt) = @_;
+            return ([],$ctxt);
+        },
 
+        'PPI::Token::Pod' => sub {
+        	(my $node, my $ctxt) = @_;
+            return ([],$ctxt);
+        },
+       
 		'PPI::Token::Symbol' => sub {
 			(my $node, my $ctxt) = @_;
 #            say '';
@@ -135,6 +145,18 @@ sub transform {
 	};
 
 	my $node_ops_pass2 = {
+         'PPI::Statement::Sub' => sub {
+        	(my $node, my $ctxt) = @_;
+            if ($ctxt->{is_pre}==1) {
+                if ($node->schild(1) eq 'GPRM::main') {
+                    $ctxt->{in_main}=1;
+                }
+            } else {
+                 $ctxt->{in_main}=0;
+            }
+            return ([$node],$ctxt);
+        },
+
 		'PPI::Statement::Include' => sub { (my $node, my $ctxt)=@_;
 			if ($ctxt->{is_post}==1) {
 				if ($node->schild(1)->content eq 'seq') {
@@ -143,7 +165,7 @@ sub transform {
 					$ctxt->{seq}=1;
 				}
 			}
-			return ([$node],$ctxt);
+			return ([$node,_nl()],$ctxt);
 		},
 		'PPI::Structure::Block' => sub {
 			(my $node, my $ctxt)=@_;
@@ -154,7 +176,9 @@ sub transform {
 			} else {
                 if ($ctxt->{is_statement_list}==1) {
                     $ctxt->{is_statement_list}=0;
-					if (ref($node->{parent}) eq 'PPI::Statement::Compound') {
+					if (ref($node->{parent}) eq 'PPI::Statement::Compound'
+                            and ref($node->{parent}->schild(0)) eq 'PPI::Structure::Block'
+                            ) {
 					say '--------';
 					my $idx = $node->{child_index};
 #					PPI::Dumper->new($node->{parent}->child($idx-2))->print;
@@ -178,10 +202,11 @@ sub transform {
 					my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
 					my $par_or_seq = $seq ? 'seq':'par';
 					$ctxt->{seq}=0;
+                     $ctxt->{extra_classes}->{Ctrl}=1;
                     my $new_node=_method_call('$_GPRM_ctrl',$par_or_seq,$args);                    
 #  PPI::Dumper->new($new_node)->print;
 #say $new_node->content; 
-                    return ([$new_node],$ctxt);
+                    return ([$new_node,_comma()],$ctxt);
 					}
                 }
             }
@@ -200,7 +225,7 @@ sub transform {
 				} else {
 				(my $tf_node,$ctxt) = wrap_foreach($node,$ctxt);
 				$ctxt->{seq}=0;
-				return ([$tf_node],$ctxt);
+				return ([$tf_node,_comma()],$ctxt);
 				}
 			} else {
 				return ([$node],$ctxt);
@@ -208,7 +233,7 @@ sub transform {
 		},
         'PPI::Statement' => sub {	
             (my $node, my $ctxt)=@_;
-    	if ($ctxt->{is_post}==1) {
+    	if ($ctxt->{is_post}==1 and $ctxt->{in_main}==1) {
 			
             # PPI::Statement is always a 'Simple Statement' 
 			# We can 
@@ -216,13 +241,32 @@ sub transform {
                 $node->{children}->[-1] = _comma();                
             }
             $ctxt->{is_statement_list}=1;
-            say 'LIST: '; map { PPI::Dumper->new($_)->print } @{$node->{children} };say '--------';
+#            say 'LIST: '; map { PPI::Dumper->new($_)->print } @{$node->{children} };say '--------';
             my $new_nodes = [  map { $_->clone() } @{$node->{children} } ];
             return ($new_nodes,$ctxt);
         } else {
         	return ([$node],$ctxt);
         }
+        },
+
+        'PPI::Statement::Variable' => sub {
+         (my $node, my $ctxt)=@_;
+    	if ($ctxt->{is_post}==1 and $ctxt->{in_main}==1) {
+			
+            # PPI::Statement::Variable, OK to put into list?
+            if ($node->{children}->[-1] eq ';') {
+                $node->{children}->[-1] = _comma();                
+            }
+            $ctxt->{is_statement_list}=1;
+#            say 'LIST: '; map { PPI::Dumper->new($_)->print } @{$node->{children} };say '--------';
+            my $new_nodes = [  map { $_->clone() } @{$node->{children} } ];
+            return ($new_nodes,$ctxt);
+        } else {
+        	return ([$node],$ctxt);
         }
+        },
+
+
 	};
 
 	my $node_ops_pass3 = {
@@ -483,11 +527,14 @@ sub wrap_foreach {
 #	say 'SEQ/PAR COUNT:',$ctxt->{count},':',$seq;
     	if ( $node->schild(0) eq 'for' or $node->schild(0) eq 'foreach' or $node->schild(0) eq 'while' ) {
 #            die $ctxt->{seq};
-		print 'Found '.$node->schild(0).", creating wrapper\n" if $verbose;
+#		print 'Found '.$node->schild(0).", creating wrapper\n" if $verbose;
         $ctxt->{extra_classes}->{Ctrl}=1;
 		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$node->content."\n} \n);\n}\n";
-		my $new_doc= new PPI::Document::Fragment(\$str);	  
-		my $new_node=$new_doc->schild()->clone();
+#		my $new_doc= new PPI::Document::Fragment(\$str);	  
+        my $new_node=_method_call('$_GPRM_ctrl', ($seq==1 ? 'seq' : 'par' ) ,[_do($node)]);
+#		my $new_node=$new_doc->schild()->clone();
+#        PPI::Dumper->new($new_node)->print;
+#        die ref($new_node);
     	return ($new_node,$ctxt);
     } else {
         my $is_bare_block=0;
@@ -503,6 +550,7 @@ sub wrap_foreach {
             }
         }
         if ($is_bare_block) {
+            my @block_content = map { $_->clone() } @{$block->{children}};
 
 # generate a begin/seq around the bare block
 # 1. replace the bare block by a do block
@@ -519,9 +567,10 @@ sub wrap_foreach {
 #        bless($new_node,'PPI::Statement');
 # 2. wrap this node in a begin/do
         $ctxt->{extra_classes}->{Ctrl}=1;
-		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$block->content."\n} \n);\n}\n";
-		my $new_doc= new PPI::Document::Fragment(\$str);	  
-		my $new_node=$new_doc->schild()->clone();
+#		my $str="\t{\n". '$_GPRM_ctrl->'. ($seq==1 ? 'seq' : 'par' ) .'( do {'."\n".$block->content."\n} \n);\n}\n";
+#		my $new_doc= new PPI::Document::Fragment(\$str);	  
+#		my $new_node=$new_doc->schild()->clone();
+        my $new_node=_method_call('$_GPRM_ctrl', ($seq==1 ? 'seq' : 'par' ) ,[@block_content]);
 		return ($new_node,$ctxt);
         } else {
 		return ($node,$ctxt);

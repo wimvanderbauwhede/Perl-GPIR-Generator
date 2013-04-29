@@ -6,6 +6,7 @@ This package provides a number of handy generators for the key PPI nodes and som
 =cut
 package PPI::Generators;
 use PPI;
+use Data::Dumper;
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -30,6 +31,8 @@ _comma
 _var 
 _num 
 _arglist 
+_do
+_block
 __inst 
 _method_call 
 _operator_expr 
@@ -124,6 +127,24 @@ sub _arglist {
     }
     bless($arglist,'PPI::Structure::List');
     return $arglist;
+}
+
+sub _do { (my @args)=@_; # a list of nodes
+    my $do_block = PPI::Statement::Expression->new();
+    $do_block->{children}=[ _word('do'),_ws(),_block(@args)];
+    bless($do_block,'PPI::Statement::Expression');
+    return $do_block;
+}
+
+sub _block { (my @statements)=@_;  # a list of nodes, should be simple statements
+    my $bare_block = new PPI::Structure::Block;
+    $bare_block->{start} = _struct('{');
+    $bare_block->{finish}= _struct('}');
+    $bare_block->{children }=[@statements];
+    bless($bare_block,'PPI::Structure::Block');
+#        die Dumper($bare_block);
+
+    return $bare_block;
 }
 
 # this is not a node! it returns a list of nodes, hence __ instead of _

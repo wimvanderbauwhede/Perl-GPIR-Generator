@@ -1,11 +1,15 @@
 package GPRM;
+
+use GPRM::Buf;
+use GPRM::Const;
+
 #BEGIN {
 use GPRM::PPI::Transformer qw( transform );
 	my $caller = $0;
 	my @objs = ();
 	my %vars=();
 	my $regcounter=0;
-	if (0 && $caller!~/_PROC_GPRM_/) {
+	if ($caller!~/_PROC_GPRM_/) {
 		my $tf_src=transform($caller);	
 #		die 'BOO!';
 #		print $tf_src;	die;
@@ -15,7 +19,7 @@ use GPRM::PPI::Transformer qw( transform );
 		open my $PSCR,'>',$proc_caller ;
 		print $PSCR $tf_src;		
 		close $PSCR;
-
+        print "EXEC\n";
 		exec("perl $proc_caller");
 
 	} # END of test if source had been preprocessed
@@ -42,7 +46,11 @@ sub new {
 sub AUTOLOAD {
 	my $self = shift;        
 	my $name = $AUTOLOAD;
+    my $lib = 'OclGPRM'; # TODO: find some way of providing the library name
+    print "NAME: $name\n";
 	(my $gprm,my $class, my $method)=split('::',$name);
+    my $uc_class=uc($class);
+    my $lib_class="$lib.$uc_class";
 	my @args=@_;
 	my @proc_args;
 	if ($class eq 'Ctrl' && $method eq 'seq') {
@@ -55,12 +63,12 @@ sub AUTOLOAD {
 		}
 	}
 	my $tid=$self->{id};
-	my $fqn="c$tid.$class.$class.$method";
+	my $fqn="c$tid.$lib_class.$method";
 	$counter++;
 	if (not exists $tiles{"c$tid"} ) { 
-		$tiles{"c$tid"}=[$tid,{"$class.$class" => 1}];
+		$tiles{"c$tid"}=[$tid,{$lib_class => 1}];
 	} else {
-		$tiles{"c$tid"}->[1]->{"$class.$class"}=1;            
+		$tiles{"c$tid"}->[1]->{$lib_class}=1;            
 	}
 	$code.= "(label L_$counter ($fqn ".join(' ',@proc_args).'))'."\n";
 

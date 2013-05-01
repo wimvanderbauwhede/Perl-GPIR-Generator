@@ -144,6 +144,28 @@ sub transform {
 		},
 	};
 
+=info_sub
+
+The structure of a sub in PPI is:
+
+bless( {
+    'parent' => ...,        
+    'children' => [
+    bless( { 'content' => 'sub', }, 'PPI::Token::Word' ),
+    bless( { 'content' => ' ', }, 'PPI::Token::Whitespace' ),
+    bless( { 'content' => 'GPRM::main', }, 'PPI::Token::Word' ),
+    bless( { 'content' => ' ', }, 'PPI::Token::Whitespace' ),
+    bless( {
+      'finish' => bless( { 'content' => '}' }, 'PPI::Token::Structure' ),
+      'children' => [
+          ...
+         ],
+      'start' => bless( { 'content' => '{' }, 'PPI::Token::Structure' )
+    }, 'PPI::Structure::Block' ) 
+ ]
+}, 'PPI::Statement::Sub' );
+=cut
+
 	my $node_ops_pass2 = {
          'PPI::Statement::Sub' => sub {
         	(my $node, my $ctxt) = @_;
@@ -154,6 +176,7 @@ sub transform {
             } else {
                  $ctxt->{in_main}=0;
             }
+            print Dumper($node);die;
             return ([$node],$ctxt);
         },
 

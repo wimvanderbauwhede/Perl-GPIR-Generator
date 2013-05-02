@@ -176,7 +176,8 @@ What is required is to get a par or seq block in there.
         	(my $node, my $ctxt) = @_;
             if ($ctxt->{is_pre}==1) {
                 if ($node->schild(1) eq 'GPRM::main') {
-                    $ctxt->{in_main}=1;
+                    $ctxt->{in_main}=2;
+ 
                 }
             } else {
                  $ctxt->{in_main}=0;
@@ -200,6 +201,17 @@ What is required is to get a par or seq block in there.
 #				say 'SEQ/PAR for ',$ctxt->{count},':',$ctxt->{seq};
 				$ctxt->{par_seq}->{$ctxt->{count}}=$ctxt->{seq};
 				$ctxt->{seq}=0;
+				if ($ctxt->{in_main}==2) {
+					$ctxt->{in_main}=1;
+# 					PPI::Dumper->new($node)->print;
+#					die;
+					my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
+					my $par_or_seq = $seq ? 'seq':'par';
+					$ctxt->{seq}=0;
+                    $ctxt->{extra_classes}->{Ctrl}=1;
+                    my $new_node=_block( _method_call('$_GPRM_ctrl',$par_or_seq,strip_ws($node->{children})));  
+					return ([$new_node],$ctxt);
+				}
 			} else {
                 if ($ctxt->{is_statement_list}==1) {
                     $ctxt->{is_statement_list}=0;
@@ -221,7 +233,7 @@ What is required is to get a par or seq block in there.
 					if ($node->{children}->[-1]->content eq ',') {
 						pop @{ $node->{children} };
 					}
-                    	PPI::Dumper->new($node)->print;
+                    	PPI::Dumper->new($node->parent)->print;
                         print "\n";
 
 #                        die "FIXME: \$args is a map {}, it should not be split into a comma-list!
@@ -232,8 +244,11 @@ What is required is to get a par or seq block in there.
                     for my $child (@{ $node->{children} }) {
                        print '*** ';
                      PPI::Dumper->new($child)->print;
-                                                
+                    if (ref($child) eq 'PPI::Token::Whitespace') {
+						say "SKIP whitespace";
+					} else {
                      push @{$args}, $child->clone();
+					}
                     }                                        
 					my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
 					my $par_or_seq = $seq ? 'seq':'par';
@@ -274,7 +289,12 @@ What is required is to get a par or seq block in there.
             # PPI::Statement is always a 'Simple Statement' 
 			
             if ($node->{children}->[-1] eq ';') {
-                $node->{children}->[-1] = _comma();                
+#                $node->{children}->[-1] = _comma();                
+				pop @{$node->{children}};
+				$node->{children}=[
+					_parens(map {$_->clone()} @{$node->{children}}),
+					_comma()
+					];
             }
             $ctxt->{is_statement_list}=1;
 #            say 'LIST: '; map { PPI::Dumper->new($_)->print } @{$node->{children} };say '--------';
@@ -620,6 +640,11 @@ sub wrap_foreach {
 		open my $CL,'>', "GPRM/$obj.pm";
 		print $CL "package GPRM::${obj};\nuse GPRM;\n\@ISA=(GPRM);\n1;\n";
 		close $CL;
+	}
+	sub strip_ws {
+	(my $elts)=@_;
+	my @elts_no_ws = grep {ref($_) ne 'PPI::Token::Whitespace'} @{$elts};
+	return [ @elts_no_ws];
 	}
 
 1;

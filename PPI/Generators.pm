@@ -31,6 +31,7 @@ _comma
 _var 
 _num 
 _arglist 
+_parens
 _do
 _block
 __inst 
@@ -127,6 +128,15 @@ sub _arglist {
     }
     bless($arglist,'PPI::Structure::List');
     return $arglist;
+}
+sub _parens {
+    my @args=@_;
+    my $list = PPI::Structure::List->new(); # NOTE: this does not work! That's why there is the call to bless() later on. Why?
+    $list->{start}=_struct('(');
+    $list->{finish}=_struct(')');
+    $list->{children}=[@args];
+    bless($list,'PPI::Structure::List');
+    return $list;
 }
 
 sub _do { (my @args)=@_; # a list of nodes

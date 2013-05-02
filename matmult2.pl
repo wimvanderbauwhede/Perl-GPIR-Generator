@@ -17,8 +17,6 @@ GPRM::main();
 
 
 sub GPRM::main {
-   {
     map { $mm[$_]->mult($A, $B, $C, $SZ) } 0.. $NTH -1;
 #    $mm[0]->add($A, $B, $C, $SZ);
-    }
 }

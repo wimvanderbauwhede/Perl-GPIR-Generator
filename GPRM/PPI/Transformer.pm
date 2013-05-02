@@ -24,9 +24,11 @@ use Exporter;
   transform
 );
 
-#die "FIXME: bare blocks must actually be converted into lists, not do blocks!
-#same for do blocks, assigned or not. Basically, every ';' must become a ','
-#";
+#die "FIXME: 
+=info_transforms
+Bare blocks must actually be converted into lists, not do blocks!
+same for do blocks, assigned or not. Basically, every ';' must become a ','
+=cut
 
 
 sub transform { 
@@ -164,6 +166,9 @@ bless( {
     }, 'PPI::Structure::Block' ) 
  ]
 }, 'PPI::Statement::Sub' );
+
+What is required is to get a par or seq block in there. 
+
 =cut
 
 	my $node_ops_pass2 = {
@@ -176,7 +181,6 @@ bless( {
             } else {
                  $ctxt->{in_main}=0;
             }
-            print Dumper($node);die;
             return ([$node],$ctxt);
         },
 
@@ -204,7 +208,7 @@ bless( {
                             ) {
 					say '--------';
 					my $idx = $node->{child_index};
-#					PPI::Dumper->new($node->{parent}->child($idx-2))->print;
+#					PPI::Dumper->new($node->{parent})->print;
 #					die;
                     my $args=[];
 					if ($node->{children}->[-1]->content eq ',') {
@@ -217,9 +221,18 @@ bless( {
 					if ($node->{children}->[-1]->content eq ',') {
 						pop @{ $node->{children} };
 					}
+                    	PPI::Dumper->new($node)->print;
+                        print "\n";
+
+#                        die "FIXME: \$args is a map {}, it should not be split into a comma-list!
+#                            A PPI::Statement should not be split!      
+#       The problem here is that the children                     
+#                            ";
+
                     for my $child (@{ $node->{children} }) {
-#                       print '*** ';
-#                     PPI::Dumper->new($child)->print;
+                       print '*** ';
+                     PPI::Dumper->new($child)->print;
+                                                
                      push @{$args}, $child->clone();
                     }                                        
 					my $seq = $ctxt->{par_seq}->{$ctxt->{count}};
@@ -259,7 +272,7 @@ bless( {
     	if ($ctxt->{is_post}==1 and $ctxt->{in_main}==1) {
 			
             # PPI::Statement is always a 'Simple Statement' 
-			# We can 
+			
             if ($node->{children}->[-1] eq ';') {
                 $node->{children}->[-1] = _comma();                
             }
@@ -594,6 +607,7 @@ sub wrap_foreach {
 #		my $new_doc= new PPI::Document::Fragment(\$str);	  
 #		my $new_node=$new_doc->schild()->clone();
         my $new_node=_method_call('$_GPRM_ctrl', ($seq==1 ? 'seq' : 'par' ) ,[@block_content]);
+         PPI::Dumper->new($new_node)->print;die;
 		return ($new_node,$ctxt);
         } else {
 		return ($node,$ctxt);

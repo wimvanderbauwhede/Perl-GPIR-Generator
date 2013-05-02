@@ -104,7 +104,7 @@ sub genAppConfig () {
 	print $YML "\n";
 	close $YML;    
 
-	unlink $0 if $0=~/_PROC_GPRM_/;
+#unlink $0 if $0=~/_PROC_GPRM_/;
 }
 
 1;
